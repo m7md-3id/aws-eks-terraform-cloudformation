@@ -1,0 +1,161 @@
+Parameters:
+
+    EnvName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+        Default: "uda-eks"
+
+    VpcCIDR: 
+        Description: Please enter the IP range (CIDR notation) for this VPC
+        Type: String
+        Default: 10.0.0.0/16
+
+    PubSubnet1:
+        Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+        Type: String
+        Default: 10.0.0.0/24
+
+    PubSubnet2:
+        Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+        Type: String
+        Default: 10.0.1.0/24
+    
+    AZ1:
+        Description: First AZ
+        Type: String
+        Default: eu-central-1a
+
+    AZ2:
+        Description: Second AZ
+        Type: String
+        Default: eu-central-1b
+
+Resources:
+
+    MainVPC: 
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock:
+              Ref: VpcCIDR
+            EnableDnsHostnames: true
+            Tags: 
+                - Key: Name
+                  Value: !Ref EnvName
+
+    InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+                - Key: Name
+                  Value: !Ref EnvName
+            
+    InternetGatewayAttachment:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            InternetGatewayId: !Ref InternetGateway
+            VpcId: !Ref MainVPC
+
+    PublicSubnet1: 
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref MainVPC
+            AvailabilityZone: !Ref AZ1
+            CidrBlock: !Ref PubSubnet1
+            MapPublicIpOnLaunch: true
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvName} Public Subnet (AZ1)
+
+    PublicSubnet2: 
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref MainVPC
+            AvailabilityZone: !Ref AZ2
+            CidrBlock: !Ref PubSubnet2
+            MapPublicIpOnLaunch: true
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvName} Public Subnet (AZ2)
+
+    PubRouteTable1:
+        Type: AWS::EC2::RouteTable
+        Properties: 
+            VpcId: !Ref MainVPC
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvName} Public Routes AZ1
+
+    PubRouteTable2:
+        Type: AWS::EC2::RouteTable
+        Properties: 
+            VpcId: !Ref MainVPC
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvName} Public Routes Az2
+
+    DefaultPublicRoute1: 
+        Type: AWS::EC2::Route
+        DependsOn: InternetGatewayAttachment
+        Properties: 
+            RouteTableId: !Ref PubRouteTable1
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref InternetGateway
+
+    DefaultPublicRoute2: 
+        Type: AWS::EC2::Route
+        DependsOn: InternetGatewayAttachment
+        Properties: 
+            RouteTableId: !Ref PubRouteTable2
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref InternetGateway
+
+    PublicSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PubRouteTable1
+            SubnetId: !Ref PublicSubnet1
+
+    PublicSubnet2RouteTableAssociation:
+       Type: AWS::EC2::SubnetRouteTableAssociation
+       Properties:
+           RouteTableId: !Ref PubRouteTable2
+           SubnetId: !Ref PublicSubnet2
+
+Outputs: 
+
+    VPC: 
+        Description: A reference to the created VPC
+        Value: !Ref MainVPC
+        Export:
+          Name: !Sub ${EnvName}-VPCID
+
+    VPCPublicRouteTable1:
+        Description: Public Routing AZ1
+        Value: !Ref PubRouteTable1
+        Export:
+          Name: !Sub ${EnvName}-PUB1-RT
+
+    VPCPublicRouteTable2:
+        Description: Public Routing AZ2
+        Value: !Ref PubRouteTable2
+        Export:
+          Name: !Sub ${EnvName}-PUB2-RT
+
+    PublicSubnets:
+        Description: A list of the public subnets
+        Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ]]
+        Export:
+          Name: !Sub ${EnvName}-PUB-NETS
+
+    PublicSubnet1:
+        Description: A reference to the public subnet in the 1st Availability Zone
+        Value: !Ref PublicSubnet1
+        Export:
+          Name: !Sub ${EnvName}-PUB1-SN
+
+    PublicSubnet2: 
+        Description: A reference to the public subnet in the 2nd Availability Zone
+        Value: !Ref PublicSubnet2
+        Export:
+          Name: !Sub ${EnvName}-PUB2-SN
+
